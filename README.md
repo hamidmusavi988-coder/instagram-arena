@@ -1,0 +1,67 @@
+# Loop
+
+An Instagram-inspired social web app built with Next.js App Router, PostgreSQL, and Drizzle ORM.
+
+**This is a real fullstack MVP with sample starter content—not just a frontend demo.** Accounts, social interactions, uploads, and messages are saved on a server. Starter creators and conversations are curated examples, not online users or automatic replies.
+
+## Deploy on Vercel
+
+Follow **[DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md)** for the complete step-by-step guide.
+
+Recommended: **Vercel + Neon PostgreSQL + public Vercel Blob + Pusher Channels**. All integrations are implemented; your own service credentials are needed to activate the hosted providers. The local preview works without Blob/Pusher credentials using persistent local uploads and SSE.
+
+- `vercel.json` selects Next.js, runs a configuration preflight, and uses the `iad1` function region.
+- `drizzle.config.ts` reads `DATABASE_URL_UNPOOLED` or `DATABASE_URL`, not a hardcoded localhost URL.
+- `.env.example` documents server-side environment variables without secrets.
+- `.gitignore` and `.vercelignore` exclude local credentials, uploads, and build artifacts.
+
+## Included
+
+- Responsive photo/video feed, carousel posts, story previews, discovery, profiles, and vertical Reels.
+- Persisted likes, comments, follows, saved collections, profile edits, and activity notifications.
+- Email/password authentication with salted scrypt hashes and database-backed HttpOnly sessions.
+- Google OAuth authorization-code flow with state verification and PKCE (credentials required).
+- Direct/group messaging with optimistic rendering, member-checked history, reconnect recovery, optional private Pusher channels, and an SSE/database reconciliation fallback.
+- JPG/PNG/WebP and MP4/WebM uploads up to 60 MB, type/signature validation, and upload ownership enforcement.
+- Direct-to-Blob browser uploads on Vercel, bypassing the function request-body limit; byte-range delivery for local videos.
+- Browser push through a service worker and persisted VAPID keys.
+
+## Environment and setup
+
+`DATABASE_URL` is required. Keep its provider-supplied TLS options. Use a hosted pooled URL on Vercel. `DATABASE_URL_UNPOOLED` is recommended for Drizzle schema setup against the same database.
+
+Cloud uploads require `BLOB_READ_WRITE_TOKEN` from a **public** Blob store. Cloud uploading and all social writes on Vercel require a registered account. Local guest interactions remain available in the preview.
+
+For managed live delivery, set all of `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, and `PUSHER_CLUSTER`. Only the public key/cluster and the current user's authorized private channel are returned to browsers. Message text remains in PostgreSQL, not in provider event payloads.
+
+For Google, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `APP_URL`, and register `${APP_URL}/api/auth/google/callback` in Google Cloud. Email sign-in works without Google.
+
+Set `SEED_DEMO_CONTENT=false` before first use of a **fresh** production database to launch without sample users/posts or initial conversations. It does not delete previously seeded data.
+
+Push reads optional `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`. If both keys are omitted, the server generates a pair once and persists it privately in PostgreSQL. Push requires HTTPS, a compatible browser, and permission.
+
+After the environment is bootstrapped, run `npx drizzle-kit push --config=drizzle.config.ts` to apply the schema. Schema changes are intentionally not performed during every Vercel build. Back up existing production data and adopt reviewed versioned migrations for subsequent production changes.
+
+## Local/persistent Node hosting
+
+Without a Blob token and outside Vercel, uploads are written to `.data/uploads`. Use a persistent volume for that directory and a persistent PostgreSQL database. Never treat a serverless temporary directory as durable storage. On Vercel, missing Blob configuration produces an explicit error instead of silently using local disk.
+
+The SSE fallback reconciles database changes every two seconds and rotates before Vercel's function deadline. The browser resynchronizes on reconnect/focus. Pusher is recommended on Vercel for low-latency cross-instance delivery and fewer long-running function invocations. No internet service can guarantee literal zero latency.
+
+## Validation
+
+- `npx next typegen`
+- `npm exec tsc -- --noEmit --pretty false`
+- `npm run build`
+- `node scripts/deployment-check.mjs` checks Vercel configuration guards without contacting external services.
+- `node scripts/visual-check.mjs` checks desktop/mobile/inbox rendering against a running local preview.
+- `node --env-file=.env scripts/e2e.mjs` exercises accounts, social persistence, uploads, media ownership, ranges, conversation authorization, live two-account delivery, groups, and notifications. It removes its test accounts/content afterward. Its video fixture is `artifacts/test-video.mp4`.
+- `node --env-file=.env scripts/mobile-check.mjs` checks mobile navigation, search, group creation, sharing, preferences, and upload previews.
+
+The functional tests target the local/SSE storage setup with starter content enabled. Blob and Pusher must additionally be verified against your real provider accounts on a deployed HTTPS domain; local passes do not establish hosted-provider connectivity.
+
+## Production scope
+
+This is an MVP, not an Instagram-scale production system. Before a broad public launch add moderation, account recovery, email verification, distributed anti-abuse controls, monitoring, backup/retention policies, and load testing. Messages are not end-to-end encrypted; uploaded feed media is public. See the deployment guide for provider costs, limitations, and a post-deployment checklist.
+
+Photography: Pexels and Unsplash. Core sample images are downloaded into `public/` so the initial feed does not rely on external image requests.

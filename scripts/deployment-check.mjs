@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+
+const names = ['VERCEL', 'DATABASE_URL', 'DATABASE_URL_UNPOOLED', 'BLOB_READ_WRITE_TOKEN', 'APP_URL', 'SEED_DEMO_CONTENT', 'PUSHER_APP_ID', 'PUSHER_KEY', 'PUSHER_SECRET', 'PUSHER_CLUSTER', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+const clean = { ...process.env };
+for (const key of names) delete clean[key];
+function preflight(values) {
+  const result = spawnSync(process.execPath, ['scripts/vercel-preflight.mjs'], { env: { ...clean, ...values }, encoding: 'utf8' });
+  return { status: result.status, output: result.stdout + result.stderr };
+}
+assert.equal(preflight({}).status, 0);
+const missing = preflight({ VERCEL: '1' });
+assert.equal(missing.status, 1);
+assert(missing.output.includes('DATABASE_URL') && missing.output.includes('BLOB_READ_WRITE_TOKEN'));
+const local = preflight({ VERCEL: '1', DATABASE_URL: 'postgresql://localhost/app' });
+assert.equal(local.status, 1); assert(local.output.includes('localhost'));
+const secret = randomBytes(32).toString('hex');
+const configured = { VERCEL: '1', DATABASE_URL: 'postgresql://database.example.invalid/app', BLOB_READ_WRITE_TOKEN: secret, SEED_DEMO_CONTENT: 'false' };
+const fallback = preflight(configured);
+assert.equal(fallback.status, 0); assert(fallback.output.includes('SSE'));
+assert(!fallback.output.includes(secret));
+const partial = preflight({ ...configured, PUSHER_KEY: secret });
+assert.equal(partial.status, 1); assert(partial.output.includes('Pusher configuration is incomplete'));
+const all = preflight({ ...configured, PUSHER_APP_ID: 'test-only', PUSHER_KEY: secret, PUSHER_SECRET: secret, PUSHER_CLUSTER: 'eu' });
+assert.equal(all.status, 0); assert(!all.output.includes(secret));
+assert.equal(preflight({ ...configured, APP_URL: 'http://insecure.example.invalid' }).status, 1);
+assert.equal(preflight({ ...configured, GOOGLE_CLIENT_ID: secret }).status, 1);
+assert.equal(preflight({ ...configured, GOOGLE_CLIENT_ID: secret, GOOGLE_CLIENT_SECRET: secret }).status, 1);
+assert.equal(preflight({ ...configured, GOOGLE_CLIENT_ID: secret, GOOGLE_CLIENT_SECRET: secret, APP_URL: 'https://example.invalid' }).status, 0);
+const vercel = JSON.parse(await readFile('vercel.json', 'utf8'));
+assert.equal(vercel.framework, 'nextjs');
+assert(vercel.buildCommand.includes('preflight') && !vercel.buildCommand.includes('drizzle'));
+const drizzle = await readFile('drizzle.config.ts', 'utf8');
+assert(drizzle.includes('DATABASE_URL_UNPOOLED') && !drizzle.includes('127.0.0.1'));
+console.log('PASS: deployment checks reject missing services, localhost databases, partial realtime/Google credentials, and insecure app origins.');
+console.log('PASS: checks do not print secret values or run schema changes during builds.');
+console.log('PASS: local builds and explicitly configured hosted/fallback modes are accepted.');
+console.log('These are configuration tests, not a live Blob/Pusher connectivity test.');
