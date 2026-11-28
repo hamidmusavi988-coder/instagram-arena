@@ -74,10 +74,11 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
     db.select().from(saves).where(inArray(saves.postId, ids)),
     db.select({ comment: comments, user: users }).from(comments).innerJoin(users, eq(comments.userId, users.id)).where(inArray(comments.postId, ids)).orderBy(asc(comments.createdAt)).limit(1000),
   ]);
+  const viewsMap = await getViewsMap(ids);
   return rows.map(({ post, author }) => {
     const postComments = allComments.filter((c) => c.comment.postId === post.id);
     const postLikes = allLikes.filter((l) => l.postId === post.id);
-    return { ...post, createdAt: post.createdAt.toISOString(), author: publicUser(author), likes: post.baseLikes + postLikes.length, liked: postLikes.some((l) => l.userId === viewerId), saved: allSaves.some((s) => s.postId === post.id), savesCount: allSaveRows.filter((s) => s.postId === post.id).length, commentCount: post.baseComments + postComments.length, comments: postComments.map(({ comment, user }) => ({ ...comment, createdAt: comment.createdAt.toISOString(), user: publicUser(user) })) };
+    return { ...post, createdAt: post.createdAt.toISOString(), author: publicUser(author), likes: post.baseLikes + postLikes.length, liked: postLikes.some((l) => l.userId === viewerId), saved: allSaves.some((s) => s.postId === post.id), savesCount: allSaveRows.filter((s) => s.postId === post.id).length, views: viewsMap.get(post.id) || 0, commentCount: post.baseComments + postComments.length, comments: postComments.map(({ comment, user }) => ({ ...comment, createdAt: comment.createdAt.toISOString(), user: publicUser(user) })) };
   });
 }
 export type TrendingTag = { tag: string; count: number };
@@ -129,7 +130,21 @@ export async function getProfile(id: string, viewerId: string) {
   ]);
   return { user: { ...publicUser(user), followers: user.baseFollowers + followersList.length, followingCount: followingList.length, following: followersList.some((f) => f.user.id === viewerId) }, posts: profilePosts, followers: followersList.map((f) => publicUser(f.user)), following: followingList.map((f) => publicUser(f.user)) };
 }
-export type Insights = { posts: number; likes: number; comments: number; saves: number; followers: number; following: number; topPostId: string | null };
+// View counts live in a `views` column added by migrations/add-views.sql.
+// All access is raw SQL inside try/catch, so the app runs identically before
+// the migration is applied (counts read as 0) and after (real counts).
+export async function getViewsMap(ids: string[]): Promise<Map<string, number>> {
+  if (!ids.length) return new Map();
+  try {
+    const result = await db.execute(sql`select id, views from loop_posts where id in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+    const rows = (result as unknown as { rows: { id: string; views: number }[] }).rows || [];
+    return new Map(rows.map((r) => [r.id, Number(r.views) || 0]));
+  } catch { return new Map(); }
+}
+export async function recordView(postId: string): Promise<void> {
+  try { await db.execute(sql`update loop_posts set views = coalesce(views, 0) + 1 where id = ${postId}`); } catch { /* column not migrated yet */ }
+}
+export type Insights = { posts: number; likes: number; comments: number; saves: number; views: number; followers: number; following: number; topPostId: string | null };
 // Creator insights for your own profile, aggregated from data that already
 // exists — no extra tracking, no schema change.
 export async function getInsights(viewerId: string): Promise<Insights> {
@@ -147,11 +162,13 @@ export async function getInsights(viewerId: string): Promise<Insights> {
   const baseById = new Map(mine.map((p) => [p.id, p.baseLikes]));
   const likeCount = (postId: string) => (baseById.get(postId) || 0) + (realLikes.get(postId) || 0);
   const top = [...mine].sort((a, b) => likeCount(b.id) - likeCount(a.id))[0];
+  const viewsMap = await getViewsMap(ids);
   return {
     posts: mine.length,
     likes: mine.reduce((sum, p) => sum + p.baseLikes, 0) + likeRows.length,
     comments: mine.reduce((sum, p) => sum + p.baseComments, 0) + commentRows.length,
     saves: saveRows.length,
+    views: [...viewsMap.values()].reduce((a, b) => a + b, 0),
     followers: followerRows.length,
     following: followingRows.length,
     topPostId: top && likeCount(top.id) > 0 ? top.id : null,

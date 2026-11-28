@@ -174,3 +174,10 @@ input,textarea,select{color:var(--text)}
 .reel-meta>span{font-size:10.5px;opacity:.85;display:block;margin-top:5px}
 @media(max-width:600px){.reel-item{border-radius:0}.reel-actions{bottom:110px;right:8px}}
 .reel-item::after{content:"";position:absolute;left:0;right:0;bottom:0;height:180px;background:linear-gradient(transparent,#000000a8);z-index:2;pointer-events:none}
+
+/* ===== View counts ===== */
+.view-count{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin:2px 0 7px}
+.reel-view-count{display:flex;flex-direction:column;align-items:center;gap:3px;color:#fff;filter:drop-shadow(0 2px 6px #000000a0)}
+.reel-view-count span{font-size:11px;font-weight:600}
+.insights-grid{grid-template-columns:repeat(6,1fr)}
+@media(max-width:600px){.insights-grid{grid-template-columns:repeat(3,1fr)}}

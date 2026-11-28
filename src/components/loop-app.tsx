@@ -41,6 +41,17 @@ export default function LoopApp({ initial }: { initial: Bootstrap }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toast = useCallback((message: string) => { setNotice(message); if (toastTimer.current) clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setNotice(""), 4200); }, []);
+  const [mutedIds, setMutedIds] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("loop-muted") || "[]"); } catch { return []; } });
+  const [hideCounts, setHideCountsState] = useState<boolean>(() => { try { return localStorage.getItem("loop-hide-counts") === "1"; } catch { return false; } });
+  const toggleMute = useCallback((user: User) => {
+    setMutedIds((prev) => {
+      const next = prev.includes(user.id) ? prev.filter((x) => x !== user.id) : [...prev, user.id];
+      try { localStorage.setItem("loop-muted", JSON.stringify(next)); } catch {}
+      toast(next.includes(user.id) ? `Muted @${user.username}. Their posts won't appear in your feed.` : `Unmuted @${user.username}.`);
+      return next;
+    });
+  }, [toast]);
+  const setHideCounts = useCallback((value: boolean) => { setHideCountsState(value); try { localStorage.setItem("loop-hide-counts", value ? "1" : "0"); } catch {} }, []);
   const refresh = useCallback(async () => { const next = await api<Bootstrap>("/api/social"); setData(next); setReady(true); }, []);
   const navigate = useCallback((next: View, id?: string) => {
     setView(next); setSearchOpen(false); setModal(null);
@@ -118,7 +129,7 @@ export default function LoopApp({ initial }: { initial: Bootstrap }) {
   const unread = data.chats.filter((c) => c.unread > 0).length;
   const alertCount = data.notifications.filter((n) => !n.read).length;
   const quickPeople = query.trim() ? data.people.filter((p) => `${p.name} ${p.username}`.toLowerCase().includes(query.toLowerCase())).slice(0, 4) : [];
-  return <LoopContext.Provider value={{ data, setData, view, navigate, profileId, focusChatId, openProfile, query, setQuery, modal, setModal, toast, connected, ready, toggleLike, toggleSave, toggleFollow, refresh }}>
+  return <LoopContext.Provider value={{ data, setData, view, navigate, profileId, focusChatId, openProfile, query, setQuery, modal, setModal, toast, connected, ready, toggleLike, toggleSave, toggleFollow, refresh, mutedIds, toggleMute, hideCounts, setHideCounts }}>
     <div className="app-shell">
       <aside className="sidebar">
         <button className="brand-link" onClick={() => navigate("home")} aria-label="Loop home"><Logo/></button>

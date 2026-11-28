@@ -78,6 +78,15 @@ The functional tests target the local/SSE storage setup with starter content ena
 - **Open original** in every post's menu: opens the full-size photo or video in a new tab.
 - **Heart red on black theme**: the whole app (and app icon) moved from the pink/white palette to heart red (#ff3040) on black.
 
+## Instagram-style feature pack
+
+- **View counts**: a post counts a view when it is mostly on screen for ~1 second (once per viewer session), shown under videos in the feed, at the top of the Reels rail, in Post insights, and as a total in profile Insights. Counts are stored in a `views` column — run `migrations/add-views.sql` once in your Postgres console to enable real counting; the app works before and after, counts simply stay 0 until the column exists.
+- **Repost**: any post's ⋯ menu can repost it to your profile with credit to the original author, who gets a notification.
+- **Mute accounts**: mute anyone from a post's ⋯ menu; their posts disappear from your feed and reels (stored on your device; manage the list in Settings → Privacy).
+- **Hide like counts**: Settings → Privacy toggle hides other people's like counts for you, in the feed and on reels.
+- **Download your data**: Settings → Privacy exports a JSON file with your profile, posts, and stats.
+- Already present before this pack: story replies and story likes (in the story viewer), DMs with photos, follow/unfollow, saves, comments with mentions, hashtags, notifications, push notifications, and creator insights.
+
 ## Requested adjustments
 
 - **Videos play unmuted by default**, as originally.

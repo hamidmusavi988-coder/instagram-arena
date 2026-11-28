@@ -11,6 +11,8 @@ type LoopContextValue = {
   toast: (message: string) => void; connected: boolean; ready: boolean;
   toggleLike: (post: Post) => Promise<void>; toggleSave: (post: Post) => Promise<void>;
   toggleFollow: (user: User) => Promise<void>; refresh: () => Promise<void>;
+  mutedIds: string[]; toggleMute: (user: User) => void;
+  hideCounts: boolean; setHideCounts: (value: boolean) => void;
 };
 export const LoopContext = createContext<LoopContextValue | null>(null);
 export function useLoop() { const value = useContext(LoopContext); if (!value) throw new Error("Loop context missing"); return value; }

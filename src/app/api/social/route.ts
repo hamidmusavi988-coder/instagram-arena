@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { users, posts, likes, saves, comments, follows, conversations, members, messages, notifications, pushSubscriptions } from "@/db/schema";
 import { ensureViewer, getViewer } from "@/lib/auth";
-import { getBootstrap, getFeed, getPeople, getProfile, getChats, getMessages, getNotifications, getTrendingHashtags, getInsights, publicUser } from "@/lib/data";
+import { getBootstrap, getFeed, getPeople, getProfile, getChats, getMessages, getNotifications, getTrendingHashtags, getInsights, recordView, publicUser } from "@/lib/data";
 import { rateLimit } from "@/lib/rate-limit";
 import { publish } from "@/lib/realtime";
 import { getVapidKeys, pushToUser } from "@/lib/push";
@@ -110,6 +110,22 @@ export async function POST(request: NextRequest) {
         const mediaType = media.mediaType;
         const postId = randomUUID();
         await db.insert(posts).values({ id: postId, authorId: viewer.id, caption, mediaUrl, thumbnail: mediaType === "image" ? mediaUrl : null, mediaType, location: text(body.location, 100) });
+        const feed = await getFeed(viewer.id, { authorId: viewer.id });
+        return Response.json({ post: feed.find((p) => p.id === postId) });
+      }
+      case "view-post": {
+        // Fire-and-forget view counting; never fails the request.
+        await recordView(id);
+        return Response.json({ ok: true });
+      }
+      case "repost": {
+        const [source] = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(eq(posts.id, id)).limit(1);
+        if (!source) return error("Post not found.", 404);
+        if (source.post.authorId === viewer.id) return error("You can't repost your own moment.");
+        const postId = randomUUID();
+        const caption = `${source.post.caption}\n\nReposted from @${source.author.username}`.slice(0, 2200);
+        await db.insert(posts).values({ id: postId, authorId: viewer.id, caption, mediaUrl: source.post.mediaUrl, thumbnail: source.post.thumbnail, mediaType: source.post.mediaType, location: source.post.location });
+        await notify(source.post.authorId, viewer.id, "follow", "reposted your moment", postId).catch(() => {});
         const feed = await getFeed(viewer.id, { authorId: viewer.id });
         return Response.json({ post: feed.find((p) => p.id === postId) });
       }
