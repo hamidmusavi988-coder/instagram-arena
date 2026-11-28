@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   description: "Share your moments with the world",
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
   applicationName: "Instagram",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
