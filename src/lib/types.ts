@@ -8,7 +8,7 @@ export type Comment = { id: string; text: string; createdAt: string; user: User 
 export type Post = {
   id: string; caption: string; mediaUrl: string; thumbnail: string | null;
   mediaType: string; location: string; audio: string; createdAt: string;
-  author: User; likes: number; commentCount: number; liked: boolean; saved: boolean;
+  author: User; likes: number; commentCount: number; liked: boolean; saved: boolean; savesCount?: number;
   comments: Comment[];
 };
 export type NotificationItem = {

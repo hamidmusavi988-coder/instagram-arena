@@ -10,7 +10,7 @@ export default async function HomePage() {
   await ensureSeed();
   const viewer = await getViewer();
   if (viewer) return <LoopApp initial={await getBootstrap(viewer)}/>;
-  const [posts, people, trending] = await Promise.all([getFeed(), getPeople(), getTrendingHashtags().catch(() => [])]);
+  const [posts, people, trending] = await Promise.all([getFeed(undefined, { random: true }), getPeople(), getTrendingHashtags().catch(() => [])]);
   const samples = sampleContentEnabled();
   const initial: Bootstrap = {
     viewer: {

@@ -21,12 +21,14 @@ export async function getPeople(viewerId?: string, query?: string) {
   const order = ["olivia", "emma", "noah", "mia", "jake", "ava", "daniel", "sarah"];
   return rows.filter((u) => u.id !== viewerId).sort((a, b) => { const ai = order.indexOf(a.id); const bi = order.indexOf(b.id); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi); }).map((u) => ({ ...publicUser(u), following: connections.some((f) => f.followingId === u.id), followers: u.baseFollowers + (followerCounts.get(u.id) || 0) }));
 }
-export async function getFeed(viewerId?: string, options: { authorId?: string; query?: string; saved?: boolean; following?: boolean; before?: string; limit?: number } = {}): Promise<Post[]> {
+export async function getFeed(viewerId?: string, options: { authorId?: string; query?: string; saved?: boolean; following?: boolean; before?: string; limit?: number; random?: boolean } = {}): Promise<Post[]> {
   const conditions = [];
   if (options.authorId) conditions.push(eq(posts.authorId, options.authorId));
   if (options.query) conditions.push(or(ilike(posts.caption, `%${escapeLike(options.query)}%`), ilike(posts.location, `%${escapeLike(options.query)}%`))!);
-  // Cursor pagination: only posts older than the cursor timestamp.
-  if (options.before) { const cursor = new Date(options.before); if (!Number.isNaN(cursor.getTime())) conditions.push(lt(posts.createdAt, cursor)); }
+  // Cursor pagination: only posts older than the cursor timestamp. In random
+  // mode the cursor does not apply — each load returns a fresh shuffle and
+  // the client de-duplicates what it already shows.
+  if (options.before && !options.random) { const cursor = new Date(options.before); if (!Number.isNaN(cursor.getTime())) conditions.push(lt(posts.createdAt, cursor)); }
   if (options.saved) {
     const selected = viewerId ? await db.select().from(saves).where(eq(saves.userId, viewerId)) : [];
     if (!selected.length) return [];
@@ -37,18 +39,19 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
     if (!selected.length) return [];
     conditions.push(inArray(posts.authorId, selected.map((f) => f.followingId)));
   }
-  const rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(posts.createdAt)).limit(Math.min(Math.max(options.limit ?? 60, 1), 60));
+  const rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(options.random ? sql`random()` : desc(posts.createdAt)).limit(Math.min(Math.max(options.limit ?? 60, 1), 60));
   if (!rows.length) return [];
   const ids = rows.map((r) => r.post.id);
-  const [allLikes, allSaves, allComments] = await Promise.all([
+  const [allLikes, allSaves, allSaveRows, allComments] = await Promise.all([
     db.select().from(likes).where(inArray(likes.postId, ids)),
     viewerId ? db.select().from(saves).where(and(eq(saves.userId, viewerId), inArray(saves.postId, ids))) : Promise.resolve([]),
+    db.select().from(saves).where(inArray(saves.postId, ids)),
     db.select({ comment: comments, user: users }).from(comments).innerJoin(users, eq(comments.userId, users.id)).where(inArray(comments.postId, ids)).orderBy(asc(comments.createdAt)).limit(1000),
   ]);
   return rows.map(({ post, author }) => {
     const postComments = allComments.filter((c) => c.comment.postId === post.id);
     const postLikes = allLikes.filter((l) => l.postId === post.id);
-    return { ...post, createdAt: post.createdAt.toISOString(), author: publicUser(author), likes: post.baseLikes + postLikes.length, liked: postLikes.some((l) => l.userId === viewerId), saved: allSaves.some((s) => s.postId === post.id), commentCount: post.baseComments + postComments.length, comments: postComments.map(({ comment, user }) => ({ ...comment, createdAt: comment.createdAt.toISOString(), user: publicUser(user) })) };
+    return { ...post, createdAt: post.createdAt.toISOString(), author: publicUser(author), likes: post.baseLikes + postLikes.length, liked: postLikes.some((l) => l.userId === viewerId), saved: allSaves.some((s) => s.postId === post.id), savesCount: allSaveRows.filter((s) => s.postId === post.id).length, commentCount: post.baseComments + postComments.length, comments: postComments.map(({ comment, user }) => ({ ...comment, createdAt: comment.createdAt.toISOString(), user: publicUser(user) })) };
   });
 }
 export type TrendingTag = { tag: string; count: number };
@@ -129,6 +132,6 @@ export async function getInsights(viewerId: string): Promise<Insights> {
   };
 }
 export async function getBootstrap(viewer: DbUser): Promise<Bootstrap> {
-  const [feed, people, alerts, chats, trending] = await Promise.all([getFeed(viewer.id), getPeople(viewer.id), getNotifications(viewer.id), getChats(viewer.id), getTrendingHashtags().catch(() => [])]);
+  const [feed, people, alerts, chats, trending] = await Promise.all([getFeed(viewer.id, { random: true }), getPeople(viewer.id), getNotifications(viewer.id), getChats(viewer.id), getTrendingHashtags().catch(() => [])]);
   return { viewer: { ...publicUser(viewer), preferences: viewer.preferences }, posts: feed, people, notifications: alerts, chats, trending, googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) };
 }

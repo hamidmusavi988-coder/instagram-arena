@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const p = request.nextUrl.searchParams;
     switch (p.get("resource") || "bootstrap") {
       case "bootstrap": return Response.json(await getBootstrap(viewer));
-      case "feed": return Response.json({ posts: await getFeed(viewer.id, { saved: p.get("saved") === "true", following: p.get("following") === "true", query: p.get("q") || undefined, before: p.get("before") || undefined, limit: p.get("limit") ? Number(p.get("limit")) : undefined }) });
+      case "feed": return Response.json({ posts: await getFeed(viewer.id, { saved: p.get("saved") === "true", following: p.get("following") === "true", query: p.get("q") || undefined, before: p.get("before") || undefined, limit: p.get("limit") ? Number(p.get("limit")) : undefined, random: !(p.get("saved") === "true" || p.get("following") === "true" || p.get("q")) }) });
       case "trending": return Response.json({ trending: await getTrendingHashtags() });
       case "insights": return Response.json({ insights: await getInsights(viewer.id) });
       case "search": {

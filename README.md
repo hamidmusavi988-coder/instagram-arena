@@ -78,9 +78,16 @@ The functional tests target the local/SSE storage setup with starter content ena
 - **Open original** in every post's menu: opens the full-size photo or video in a new tab.
 - **Heart red on black theme**: the whole app (and app icon) moved from the pink/white palette to heart red (#ff3040) on black.
 
+## Requested adjustments
+
+- **Videos play unmuted by default**, as originally.
+- **One tap pauses/plays** a video; a double tap still likes (with the heart burst) and never pauses.
+- **Post insights**: your own posts have a "Post insights" entry in their ⋯ menu with likes, comments, and saves.
+- **Random feed**: the main feed is shuffled on the server (`ORDER BY random()`), so every visit surfaces a different mix instead of newest-first. Profile, saved, following, and search lists stay in time order; "Load older moments" pulls another shuffle and de-duplicates.
+
 ## Polish pack
 
-- **Videos start muted** everywhere (feed and Reels); browsers block audible autoplay and a feed should never surprise you with sound. The volume button still unmutes.
+- **Videos start muted** everywhere (feed and Reels); browsers block audible autoplay and a feed should never surprise you with sound. The volume button still unmutes. *(Superseded by the requested adjustment above: videos are unmuted by default again.)*
 - **Double-tap heart burst**: double-tapping any photo or video shows a big heart-red burst animation as it likes the post (respecting reduced-motion settings).
 - **Clearer failures**: the API client now distinguishes "can't reach the server", a server error, and a normal error message instead of failing cryptically on non-JSON responses.
 - **Search dropdown manners**: it closes on Escape and on any click outside it.
