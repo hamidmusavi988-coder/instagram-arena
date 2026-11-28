@@ -155,3 +155,22 @@ input,textarea,select{color:var(--text)}
 .like-burst{position:absolute;inset:0;display:grid;place-items:center;color:#ff3040;pointer-events:none;z-index:5;animation:like-burst .65s ease-out forwards;filter:drop-shadow(0 6px 18px #00000090)}
 @keyframes like-burst{0%{transform:scale(.3);opacity:0}25%{transform:scale(1.15);opacity:1}55%{transform:scale(.96);opacity:1}100%{transform:scale(1.05) translateY(-14px);opacity:0}}
 @media(prefers-reduced-motion:reduce){.like-burst{animation:none;opacity:0}}
+
+/* ===== Reels: full-screen video, right rail, overlay meta (like the reference) ===== */
+.reel-item{background:#000}
+.reel-actions{position:absolute;right:10px;bottom:104px;z-index:4;width:auto;padding:0;gap:20px;align-self:auto}
+.reel-actions button{background:none;border:0;box-shadow:none;color:#fff;display:flex;flex-direction:column;align-items:center;gap:3px;width:auto;height:auto;padding:0;filter:drop-shadow(0 2px 6px #000000a0)}
+.reel-actions button span{font-size:11px;font-weight:600;color:#fff}
+.reel-actions button.is-liked{color:var(--pink)}
+.reel-actions button.is-liked span{color:#fff}
+.reel-meta{position:absolute;left:12px;right:78px;bottom:14px;z-index:4;color:#fff;text-shadow:0 1px 8px #00000090}
+.reel-author-row{display:flex;align-items:center;gap:10px}
+.reel-author{color:#fff}
+.reel-author b{font-size:13.5px;color:#fff}
+.reel-author .avatar{border:2px solid #ffffff55}
+.reel-follow{border:1.5px solid #fff;border-radius:9px;color:#fff;font-size:12.5px;font-weight:650;padding:5px 13px;background:#00000030}
+.reel-follow:hover{background:var(--pink);border-color:var(--pink)}
+.reel-meta p{font-size:13px;line-height:1.45;margin-top:9px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.reel-meta>span{font-size:10.5px;opacity:.85;display:block;margin-top:5px}
+@media(max-width:600px){.reel-item{border-radius:0}.reel-actions{bottom:110px;right:8px}}
+.reel-item::after{content:"";position:absolute;left:0;right:0;bottom:0;height:180px;background:linear-gradient(transparent,#000000a8);z-index:2;pointer-events:none}

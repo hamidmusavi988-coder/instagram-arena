@@ -25,8 +25,8 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
   const conditions = [];
   if (options.authorId) conditions.push(eq(posts.authorId, options.authorId));
   if (options.query) conditions.push(or(ilike(posts.caption, `%${escapeLike(options.query)}%`), ilike(posts.location, `%${escapeLike(options.query)}%`))!);
-  // Cursor pagination: only posts older than the cursor timestamp. In random
-  // mode the cursor does not apply — each load returns a fresh shuffle and
+  // Cursor pagination: only posts older than the cursor timestamp. In ranked
+  // mode the cursor does not apply — "load more" returns a fresh shuffle and
   // the client de-duplicates what it already shows.
   if (options.before && !options.random) { const cursor = new Date(options.before); if (!Number.isNaN(cursor.getTime())) conditions.push(lt(posts.createdAt, cursor)); }
   if (options.saved) {
@@ -39,7 +39,33 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
     if (!selected.length) return [];
     conditions.push(inArray(posts.authorId, selected.map((f) => f.followingId)));
   }
-  const rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(options.random ? sql`random()` : desc(posts.createdAt)).limit(Math.min(Math.max(options.limit ?? 60, 1), 60));
+  const limit = Math.min(Math.max(options.limit ?? 60, 1), 60);
+  // Ranked mode (the main feed): score a candidate pool by the viewer's
+  // interests instead of pure time or pure chance. Load-more calls (which
+  // pass a cursor) fall back to a fresh random shuffle.
+  const ranked = Boolean(options.random && viewerId && !options.before && !options.authorId && !options.query && !options.saved && !options.following);
+  let rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(ranked || options.random ? sql`random()` : desc(posts.createdAt)).limit(ranked ? 200 : limit);
+  if (ranked && viewerId) {
+    const [likedRows, savedRows, followRows] = await Promise.all([
+      db.select().from(likes).where(eq(likes.userId, viewerId)),
+      db.select().from(saves).where(eq(saves.userId, viewerId)),
+      db.select().from(follows).where(eq(follows.followerId, viewerId)),
+    ]);
+    const interestPostIds = new Set([...likedRows.map((l) => l.postId), ...savedRows.map((s) => s.postId)]);
+    const interestPosts = interestPostIds.size ? await db.select({ caption: posts.caption }).from(posts).where(inArray(posts.id, [...interestPostIds])) : [];
+    const tagOf = (caption: string) => (caption.match(/#[\p{L}\p{N}_]+/gu) || []).map((t) => t.toLowerCase());
+    const interestTags = new Set(interestPosts.flatMap((p) => tagOf(p.caption)));
+    const followedAuthors = new Set(followRows.map((f) => f.followingId));
+    const score = (row: (typeof rows)[number]) => {
+      let s = Math.random() * 2; // jitter, so the mix still feels fresh
+      s += tagOf(row.post.caption).filter((t) => interestTags.has(t)).length * 2;
+      if (followedAuthors.has(row.post.authorId)) s += 3;
+      if (row.post.authorId === viewerId) s -= 1.5; // your own posts a little lower
+      s += Math.min(2, Math.log10(row.post.baseLikes + row.post.baseComments + 1) / 2);
+      return s;
+    };
+    rows = [...rows].sort((a, b) => score(b) - score(a)).slice(0, limit);
+  }
   if (!rows.length) return [];
   const ids = rows.map((r) => r.post.id);
   const [allLikes, allSaves, allSaveRows, allComments] = await Promise.all([

@@ -83,7 +83,8 @@ The functional tests target the local/SSE storage setup with starter content ena
 - **Videos play unmuted by default**, as originally.
 - **One tap pauses/plays** a video; a double tap still likes (with the heart burst) and never pauses.
 - **Post insights**: your own posts have a "Post insights" entry in their ⋯ menu with likes, comments, and saves.
-- **Random feed**: the main feed is shuffled on the server (`ORDER BY random()`), so every visit surfaces a different mix instead of newest-first. Profile, saved, following, and search lists stay in time order; "Load older moments" pulls another shuffle and de-duplicates.
+- **Interest-ranked feed**: the main feed is scored on the server by what each viewer actually engages with — hashtags from posts they liked or saved count most, posts from people they follow get a boost, popularity adds a little, and a small random jitter keeps it fresh. It is neither newest-first nor purely random. Profile, saved, following, and search lists stay in time order; "Load older moments" pulls another shuffle and de-duplicates.
+- **Reels, full-screen**: reels now fill the screen edge-to-edge with the action rail (like, comment, share, save, each with its count) lined up vertically over the video on the right, and the author, a Follow button, caption, and location overlaid at the bottom-left over a soft gradient — the layout of mainstream reels apps.
 
 ## Polish pack
 
