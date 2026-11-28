@@ -69,6 +69,15 @@ The functional tests target the local/SSE storage setup with starter content ena
 - **Search hardening**: LIKE wildcards (`%`, `_`, `\`) in user search text are escaped, so a query matches literally instead of matching everything.
 - **Security response headers**: `next.config.ts` now sends `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN`, `Permissions-Policy`, and HSTS on every route.
 
+## Feature pack 2
+
+- **Creator insights**: `?resource=insights` aggregates your posts, likes received, comments, saves, and follower counts; your own profile shows a private insights strip with a shortcut to your most-liked post.
+- **Trending hashtag chips** in the Create dialog: one tap appends a live trending hashtag to your caption (no duplicates).
+- **Recent searches** on Explore: your last six searches are kept on-device, shown as chips, and can be cleared.
+- **Follower counts** on people cards in Explore, from real follow data plus each profile's base audience.
+- **Open original** in every post's menu: opens the full-size photo or video in a new tab.
+- **Heart red on black theme**: the whole app (and app icon) moved from the pink/white palette to heart red (#ff3040) on black.
+
 ## Production scope
 
 This is an MVP, not an Instagram-scale production system. Before a broad public launch add moderation, account recovery, email verification, distributed anti-abuse controls, monitoring, backup/retention policies, and load testing. Messages are not end-to-end encrypted; uploaded feed media is public. See the deployment guide for provider costs, limitations, and a post-deployment checklist.

@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { users, posts, likes, saves, comments, follows, conversations, members, messages, notifications, pushSubscriptions } from "@/db/schema";
 import { ensureViewer, getViewer } from "@/lib/auth";
-import { getBootstrap, getFeed, getPeople, getProfile, getChats, getMessages, getNotifications, getTrendingHashtags, publicUser } from "@/lib/data";
+import { getBootstrap, getFeed, getPeople, getProfile, getChats, getMessages, getNotifications, getTrendingHashtags, getInsights, publicUser } from "@/lib/data";
 import { rateLimit } from "@/lib/rate-limit";
 import { publish } from "@/lib/realtime";
 import { getVapidKeys, pushToUser } from "@/lib/push";
@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       case "bootstrap": return Response.json(await getBootstrap(viewer));
       case "feed": return Response.json({ posts: await getFeed(viewer.id, { saved: p.get("saved") === "true", following: p.get("following") === "true", query: p.get("q") || undefined, before: p.get("before") || undefined, limit: p.get("limit") ? Number(p.get("limit")) : undefined }) });
       case "trending": return Response.json({ trending: await getTrendingHashtags() });
+      case "insights": return Response.json({ insights: await getInsights(viewer.id) });
       case "search": {
         const q = (p.get("q") || "").slice(0, 100).replace(/^#/, "");
         const [people, feed] = await Promise.all([getPeople(viewer.id, q), getFeed(viewer.id, { query: q })]);

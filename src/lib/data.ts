@@ -15,8 +15,11 @@ export async function getPeople(viewerId?: string, query?: string) {
   const condition = query ? and(eq(users.demo, false), or(ilike(users.username, `%${escapeLike(query)}%`), ilike(users.name, `%${escapeLike(query)}%`))) : eq(users.demo, false);
   const rows = await db.select().from(users).where(condition).limit(60);
   const connections = viewerId ? await db.select().from(follows).where(eq(follows.followerId, viewerId)) : [];
+  const allFollows = await db.select({ followingId: follows.followingId }).from(follows);
+  const followerCounts = new Map<string, number>();
+  for (const f of allFollows) followerCounts.set(f.followingId, (followerCounts.get(f.followingId) || 0) + 1);
   const order = ["olivia", "emma", "noah", "mia", "jake", "ava", "daniel", "sarah"];
-  return rows.filter((u) => u.id !== viewerId).sort((a, b) => { const ai = order.indexOf(a.id); const bi = order.indexOf(b.id); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi); }).map((u) => ({ ...publicUser(u), following: connections.some((f) => f.followingId === u.id) }));
+  return rows.filter((u) => u.id !== viewerId).sort((a, b) => { const ai = order.indexOf(a.id); const bi = order.indexOf(b.id); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi); }).map((u) => ({ ...publicUser(u), following: connections.some((f) => f.followingId === u.id), followers: u.baseFollowers + (followerCounts.get(u.id) || 0) }));
 }
 export async function getFeed(viewerId?: string, options: { authorId?: string; query?: string; saved?: boolean; following?: boolean; before?: string; limit?: number } = {}): Promise<Post[]> {
   const conditions = [];
@@ -96,6 +99,31 @@ export async function getProfile(id: string, viewerId: string) {
     getFeed(viewerId, { authorId: user.id }),
   ]);
   return { user: { ...publicUser(user), followers: user.baseFollowers + followersList.length, followingCount: followingList.length, following: followersList.some((f) => f.user.id === viewerId) }, posts: profilePosts, followers: followersList.map((f) => publicUser(f.user)), following: followingList.map((f) => publicUser(f.user)) };
+}
+export type Insights = { posts: number; likes: number; comments: number; saves: number; followers: number; following: number; topPostId: string | null };
+// Creator insights for your own profile, aggregated from data that already
+// exists — no extra tracking, no schema change.
+export async function getInsights(viewerId: string): Promise<Insights> {
+  const mine = await db.select().from(posts).where(eq(posts.authorId, viewerId));
+  const ids = mine.map((p) => p.id);
+  const [likeRows, commentRows, saveRows, followerRows, followingRows] = await Promise.all([
+    ids.length ? db.select().from(likes).where(inArray(likes.postId, ids)) : Promise.resolve([]),
+    ids.length ? db.select().from(comments).where(inArray(comments.postId, ids)) : Promise.resolve([]),
+    ids.length ? db.select().from(saves).where(inArray(saves.postId, ids)) : Promise.resolve([]),
+    db.select().from(follows).where(eq(follows.followingId, viewerId)),
+    db.select().from(follows).where(eq(follows.followerId, viewerId)),
+  ]);
+  const likeCount = (postId: string) => (mine.find((p) => p.id === postId)?.baseLikes || 0) + likeRows.filter((l) => l.postId === postId).length;
+  const top = [...mine].sort((a, b) => likeCount(b.id) - likeCount(a.id))[0];
+  return {
+    posts: mine.length,
+    likes: mine.reduce((sum, p) => sum + p.baseLikes, 0) + likeRows.length,
+    comments: mine.reduce((sum, p) => sum + p.baseComments, 0) + commentRows.length,
+    saves: saveRows.length,
+    followers: followerRows.length,
+    following: followingRows.length,
+    topPostId: top && likeCount(top.id) > 0 ? top.id : null,
+  };
 }
 export async function getBootstrap(viewer: DbUser): Promise<Bootstrap> {
   const [feed, people, alerts, chats, trending] = await Promise.all([getFeed(viewer.id), getPeople(viewer.id), getNotifications(viewer.id), getChats(viewer.id), getTrendingHashtags().catch(() => [])]);

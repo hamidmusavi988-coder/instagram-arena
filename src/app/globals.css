@@ -127,3 +127,26 @@ input,textarea,select{color:var(--text)}
 .post-author-line>button{color:#fff}
 .comment p>button{color:#fff}
 .person-name,.suggestion-name>b,.trend b{color:#f5f5f4}
+
+/* ===== Feature pack: insights, recent searches, trending chips ===== */
+.insights-strip{margin-top:18px;background:#0d0d0f;border:1px solid var(--line);border-radius:13px;padding:20px 22px}
+.insights-heading{display:flex;align-items:center;gap:8px;color:var(--pink)}
+.insights-heading h3{font-size:14px;color:var(--text)}
+.insights-heading span{margin-left:auto;font-size:9px;color:var(--muted);letter-spacing:.4px}
+.insights-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:16px;text-align:center}
+.insights-grid span{display:flex;flex-direction:column;gap:3px}
+.insights-grid b{font-size:17px}
+.insights-grid small{font-size:9px;color:var(--muted)}
+.insights-top{margin-top:16px;font-size:11px;font-weight:650;color:var(--pink);display:inline-flex;align-items:center;gap:6px}
+.insights-top:hover{color:var(--pink-dark)}
+@media(max-width:600px){.insights-grid{grid-template-columns:repeat(3,1fr);gap:14px 6px}}
+.recent-searches{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 16px}
+.recent-searches>span{font-size:10px;font-weight:650;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
+.recent-searches>button{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:#141416;border:1px solid #26262b;color:#e8e8ea;border-radius:20px;padding:6px 12px}
+.recent-searches>button:hover{border-color:var(--pink);color:var(--pink)}
+.recent-searches>.recent-clear{background:none;border:0;color:var(--muted);text-decoration:underline;padding:6px 4px}
+.trending-chips{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:10px}
+.trending-chips>span{font-size:9px;font-weight:650;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
+.trending-chips>button{font-size:11px;font-weight:600;background:var(--pink-light);color:var(--pink);border-radius:20px;padding:5px 11px}
+.trending-chips>button:hover{background:#3d0f16}
+.load-more-button{display:flex;margin:18px auto 4px}
