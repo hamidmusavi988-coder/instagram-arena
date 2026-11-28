@@ -15,10 +15,16 @@ type LoopContextValue = {
 export const LoopContext = createContext<LoopContextValue | null>(null);
 export function useLoop() { const value = useContext(LoopContext); if (!value) throw new Error("Loop context missing"); return value; }
 export async function api<T = Record<string, unknown>>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
-  return data;
+  let response: Response;
+  try {
+    response = await fetch(url, options);
+  } catch {
+    throw new Error("Can't reach Loop right now. Check your connection and try again.");
+  }
+  // Error pages (deployments, proxies, 404s) may not be JSON at all.
+  const data = await response.json().catch(() => null) as { error?: string } | null;
+  if (!response.ok) throw new Error(data?.error || (response.status >= 500 ? "Loop is having a moment. Please try again in a few seconds." : "Something went wrong. Please try again."));
+  return data as T;
 }
 export function social<T = Record<string, unknown>>(action: string, values: Record<string, unknown> = {}) { return api<T>("/api/social", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...values }) }); }
 export async function enablePush() {

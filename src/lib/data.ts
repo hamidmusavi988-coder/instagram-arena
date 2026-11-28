@@ -15,9 +15,9 @@ export async function getPeople(viewerId?: string, query?: string) {
   const condition = query ? and(eq(users.demo, false), or(ilike(users.username, `%${escapeLike(query)}%`), ilike(users.name, `%${escapeLike(query)}%`))) : eq(users.demo, false);
   const rows = await db.select().from(users).where(condition).limit(60);
   const connections = viewerId ? await db.select().from(follows).where(eq(follows.followerId, viewerId)) : [];
-  const allFollows = await db.select({ followingId: follows.followingId }).from(follows);
-  const followerCounts = new Map<string, number>();
-  for (const f of allFollows) followerCounts.set(f.followingId, (followerCounts.get(f.followingId) || 0) + 1);
+  // Aggregate in SQL instead of pulling every follow row into memory.
+  const allFollows = await db.select({ followingId: follows.followingId, n: sql<number>`count(*)::int` }).from(follows).groupBy(follows.followingId);
+  const followerCounts = new Map(allFollows.map((f) => [f.followingId, f.n]));
   const order = ["olivia", "emma", "noah", "mia", "jake", "ava", "daniel", "sarah"];
   return rows.filter((u) => u.id !== viewerId).sort((a, b) => { const ai = order.indexOf(a.id); const bi = order.indexOf(b.id); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi); }).map((u) => ({ ...publicUser(u), following: connections.some((f) => f.followingId === u.id), followers: u.baseFollowers + (followerCounts.get(u.id) || 0) }));
 }
@@ -113,7 +113,10 @@ export async function getInsights(viewerId: string): Promise<Insights> {
     db.select().from(follows).where(eq(follows.followingId, viewerId)),
     db.select().from(follows).where(eq(follows.followerId, viewerId)),
   ]);
-  const likeCount = (postId: string) => (mine.find((p) => p.id === postId)?.baseLikes || 0) + likeRows.filter((l) => l.postId === postId).length;
+  const realLikes = new Map<string, number>();
+  for (const l of likeRows) realLikes.set(l.postId, (realLikes.get(l.postId) || 0) + 1);
+  const baseById = new Map(mine.map((p) => [p.id, p.baseLikes]));
+  const likeCount = (postId: string) => (baseById.get(postId) || 0) + (realLikes.get(postId) || 0);
   const top = [...mine].sort((a, b) => likeCount(b.id) - likeCount(a.id))[0];
   return {
     posts: mine.length,

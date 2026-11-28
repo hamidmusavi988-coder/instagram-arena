@@ -38,9 +38,12 @@ export function FeedView({ saved = false }: { saved?: boolean }) {
 export function PostMedia({ post, reel = false }: { post: Post; reel?: boolean }) {
   const { toggleLike } = useLoop();
   const [slide, setSlide] = useState(0);
-  const [muted, setMuted] = useState(false);
+  // Videos always start muted: browsers block audible autoplay, and a feed
+  // that suddenly plays sound is a nasty surprise. The volume button unmutes.
+  const [muted, setMuted] = useState(true);
   const [playing, setPlaying] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [burst, setBurst] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const slides = post.id === "coastal-daydream" ? [post.mediaUrl, "/images/positano-sun.jpg", "/images/positano.jpg"] : [post.mediaUrl];
   useEffect(() => {
@@ -49,7 +52,8 @@ export function PostMedia({ post, reel = false }: { post: Post; reel?: boolean }
     const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting && playing) el.play().catch(() => {}); else el.pause(); }, { threshold: 0.45 });
     observer.observe(el); return () => observer.disconnect();
   }, [playing]);
-  return <div className={`post-media ${reel ? "reel-media" : ""}`} onDoubleClick={() => { if (!post.liked) toggleLike(post); }}>
+  return <div className={`post-media ${reel ? "reel-media" : ""}`} onDoubleClick={() => { setBurst(true); window.setTimeout(() => setBurst(false), 650); if (!post.liked) toggleLike(post); }}>
+    {burst && <span className="like-burst" aria-hidden="true"><Heart size={84} fill="currentColor"/></span>}
     {post.mediaType === "video" ? <><video ref={video} src={post.mediaUrl} poster={post.thumbnail || undefined} autoPlay={reel} loop muted={muted} playsInline preload="metadata" onError={() => setFailed(true)} aria-label={post.caption.split("\n")[0]}/><button className="media-play" aria-label={playing ? "Pause video" : "Play video"} onClick={() => { const next = !playing; setPlaying(next); if (next) video.current?.play().catch(() => {}); else video.current?.pause(); }}>{playing ? <Pause size={16}/> : <Play size={17}/>}</button><div className="media-audio"><Music2 size={13}/><span>{post.audio}</span></div><button className="media-volume" aria-label={muted ? "Unmute video" : "Mute video"} onClick={() => setMuted(!muted)}>{muted ? <VolumeX size={16}/> : <Volume2 size={16}/>}</button>{failed && <div className="video-error"><p>This video couldn't load.</p><button onClick={() => { setFailed(false); video.current?.load(); }}>Try again</button></div>}</> : <><img src={slides[slide]} alt={post.id === "coastal-daydream" ? "Pastel houses and colorful beach umbrellas along the turquoise Positano coast" : post.caption.split("\n")[0]} loading={post.id === "coastal-daydream" ? "eager" : "lazy"}/>{slides.length > 1 && <><span className="slide-count">{slide + 1} / {slides.length}</span>{slide > 0 && <button className="carousel-arrow carousel-prev" aria-label="Previous photo" onClick={() => setSlide(slide - 1)}><ChevronLeft size={20}/></button>}{slide < slides.length - 1 && <button className="carousel-arrow" aria-label="Next photo" onClick={() => setSlide(slide + 1)}><ChevronRight size={20}/></button>}<div className="carousel-dots">{slides.map((_, i) => <button key={i} aria-label={`View photo ${i + 1}`} className={slide === i ? "active" : ""} onClick={() => setSlide(i)}/>)}</div></>}</>}
   </div>;
 }

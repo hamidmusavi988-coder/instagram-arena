@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Bookmark, Check, Clapperboard, Grid2X2, Heart, MapPin, MessageCircle, Plus, Search, Send, Settings, Sparkles, UsersRound, Bell, BellRing, CheckCheck, ShieldCheck, LogOut, ChevronRight, LoaderCircle, Camera, Globe, LockKeyhole } from "lucide-react";
 import type { User, Post, Chat } from "@/lib/types";
 import { useLoop, api, social, enablePush } from "@/components/loop-context";
@@ -77,7 +77,23 @@ export function ProfileView() {
 export function ReelsView() {
   const { data, toggleLike, toggleSave, setModal, openProfile } = useLoop();
   const reels = data.posts.filter((p) => p.mediaType === "video");
-  return <div className="reels-page"><div className="reel-stack">{reels.map((post) => <div className="reel-row" key={post.id}><div className="reel-item"><PostMedia post={post} reel/><div className="reel-caption"><button className="reel-author" onClick={() => openProfile(post.author.id)}><Avatar user={post.author} size={35}/><b>{post.author.username}</b>{post.author.verified && <Verified/>}</button><p>{post.caption.split("\n")[0]}</p><span>{post.location}</span></div></div><div className="reel-actions"><button className={post.liked ? "is-liked" : ""} onClick={() => toggleLike(post)} aria-label="Like reel"><Heart size={27} fill={post.liked ? "currentColor" : "none"}/><span>{compact(post.likes)}</span></button><button onClick={() => setModal({ type: "post", post })} aria-label="Comment on reel"><MessageCircle size={27}/><span>{post.commentCount}</span></button><button onClick={() => setModal({ type: "share", post })} aria-label="Share reel"><Send size={27}/><span>Share</span></button><button onClick={() => toggleSave(post)} aria-label="Save reel"><Bookmark size={26} fill={post.saved ? "currentColor" : "none"}/></button></div></div>)}{!reels.length && <EmptyState icon={<Clapperboard size={30}/>} title="Be the first to press play" text="Upload a short video and share a moving moment."/>}</div><aside className="reels-aside"><div className="eyebrow"><Sparkles size={15}/>YOUR NEXT LITTLE OBSESSION</div><h2>Made for<br/>the replay.</h2><p>A glimpse of somewhere new.<br/>A little spark of inspiration.<br/>Moments that move you.</p><button className="primary-button" onClick={() => setModal({ type: "create", title: "Create a reel" })}><Plus size={17}/>Share a reel</button><div className="reels-note"><Clapperboard size={20}/><p>Your videos. No big production needed.<br/><span>MP4 & WebM · Up to 60 MB</span></p></div></aside></div>;
+  const stackRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const stack = stackRef.current;
+    if (!stack) return;
+    // Arrow keys / j / k move between reels, like a TV remote.
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest("input, textarea")) return;
+      const down = e.key === "ArrowDown" || e.key === "j";
+      const up = e.key === "ArrowUp" || e.key === "k";
+      if (!down && !up) return;
+      e.preventDefault();
+      stack.scrollBy({ top: (down ? 1 : -1) * stack.clientHeight, behavior: "smooth" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return <div className="reels-page"><div className="reel-stack" ref={stackRef}>{reels.map((post) => <div className="reel-row" key={post.id}><div className="reel-item"><PostMedia post={post} reel/><div className="reel-caption"><button className="reel-author" onClick={() => openProfile(post.author.id)}><Avatar user={post.author} size={35}/><b>{post.author.username}</b>{post.author.verified && <Verified/>}</button><p>{post.caption.split("\n")[0]}</p><span>{post.location}</span></div></div><div className="reel-actions"><button className={post.liked ? "is-liked" : ""} onClick={() => toggleLike(post)} aria-label="Like reel"><Heart size={27} fill={post.liked ? "currentColor" : "none"}/><span>{compact(post.likes)}</span></button><button onClick={() => setModal({ type: "post", post })} aria-label="Comment on reel"><MessageCircle size={27}/><span>{post.commentCount}</span></button><button onClick={() => setModal({ type: "share", post })} aria-label="Share reel"><Send size={27}/><span>Share</span></button><button onClick={() => toggleSave(post)} aria-label="Save reel"><Bookmark size={26} fill={post.saved ? "currentColor" : "none"}/></button></div></div>)}{!reels.length && <EmptyState icon={<Clapperboard size={30}/>} title="Be the first to press play" text="Upload a short video and share a moving moment."/>}</div><aside className="reels-aside"><div className="eyebrow"><Sparkles size={15}/>YOUR NEXT LITTLE OBSESSION</div><h2>Made for<br/>the replay.</h2><p>A glimpse of somewhere new.<br/>A little spark of inspiration.<br/>Moments that move you.</p><button className="primary-button" onClick={() => setModal({ type: "create", title: "Create a reel" })}><Plus size={17}/>Share a reel</button><div className="reels-note"><Clapperboard size={20}/><p>Your videos. No big production needed.<br/><span>MP4 & WebM · Up to 60 MB</span></p></div></aside></div>;
 }
 
 export function NotificationsView() {

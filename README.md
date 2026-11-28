@@ -78,6 +78,15 @@ The functional tests target the local/SSE storage setup with starter content ena
 - **Open original** in every post's menu: opens the full-size photo or video in a new tab.
 - **Heart red on black theme**: the whole app (and app icon) moved from the pink/white palette to heart red (#ff3040) on black.
 
+## Polish pack
+
+- **Videos start muted** everywhere (feed and Reels); browsers block audible autoplay and a feed should never surprise you with sound. The volume button still unmutes.
+- **Double-tap heart burst**: double-tapping any photo or video shows a big heart-red burst animation as it likes the post (respecting reduced-motion settings).
+- **Clearer failures**: the API client now distinguishes "can't reach the server", a server error, and a normal error message instead of failing cryptically on non-JSON responses.
+- **Search dropdown manners**: it closes on Escape and on any click outside it.
+- **Reels keyboard navigation**: ArrowUp/ArrowDown (or j/k) move between reels.
+- **Faster people & insights queries**: follower counts are aggregated in SQL, and insight like-counts use a single pass instead of repeated scans.
+
 ## Production scope
 
 This is an MVP, not an Instagram-scale production system. Before a broad public launch add moderation, account recovery, email verification, distributed anti-abuse controls, monitoring, backup/retention policies, and load testing. Messages are not end-to-end encrypted; uploaded feed media is public. See the deployment guide for provider costs, limitations, and a post-deployment checklist.

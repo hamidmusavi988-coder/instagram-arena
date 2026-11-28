@@ -69,6 +69,14 @@ export default function LoopApp({ initial }: { initial: Bootstrap }) {
     return () => { window.removeEventListener("popstate", restore); window.removeEventListener("keydown", shortcut); };
   }, [refresh, toast]);
   useEffect(() => {
+    if (!searchOpen) return;
+    const dismiss = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest(".search-wrap")) setSearchOpen(false); };
+    const escape = (e: KeyboardEvent) => { if (e.key === "Escape") setSearchOpen(false); };
+    document.addEventListener("mousedown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("mousedown", dismiss); document.removeEventListener("keydown", escape); };
+  }, [searchOpen]);
+  useEffect(() => {
     if (!ready) return;
     const params = new URLSearchParams(window.location.search);
     const post = data.posts.find((p) => p.id === params.get("post"));

@@ -150,3 +150,8 @@ input,textarea,select{color:var(--text)}
 .trending-chips>button{font-size:11px;font-weight:600;background:var(--pink-light);color:var(--pink);border-radius:20px;padding:5px 11px}
 .trending-chips>button:hover{background:#3d0f16}
 .load-more-button{display:flex;margin:18px auto 4px}
+
+/* ===== Polish: double-tap heart burst ===== */
+.like-burst{position:absolute;inset:0;display:grid;place-items:center;color:#ff3040;pointer-events:none;z-index:5;animation:like-burst .65s ease-out forwards;filter:drop-shadow(0 6px 18px #00000090)}
+@keyframes like-burst{0%{transform:scale(.3);opacity:0}25%{transform:scale(1.15);opacity:1}55%{transform:scale(.96);opacity:1}100%{transform:scale(1.05) translateY(-14px);opacity:0}}
+@media(prefers-reduced-motion:reduce){.like-burst{animation:none;opacity:0}}
