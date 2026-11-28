@@ -4,7 +4,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { users, posts, likes, saves, comments, follows, conversations, members, messages, notifications, pushSubscriptions } from "@/db/schema";
 import { ensureViewer, getViewer } from "@/lib/auth";
-import { getBootstrap, getFeed, getPeople, getProfile, getChats, getMessages, getNotifications, publicUser } from "@/lib/data";
+import { getBootstrap, getFeed, getPeople, getProfile, getChats, getMessages, getNotifications, getTrendingHashtags, publicUser } from "@/lib/data";
+import { rateLimit } from "@/lib/rate-limit";
 import { publish } from "@/lib/realtime";
 import { getVapidKeys, pushToUser } from "@/lib/push";
 import { ownedUpload, UploadError } from "@/lib/storage";
@@ -19,7 +20,8 @@ export async function GET(request: NextRequest) {
     const p = request.nextUrl.searchParams;
     switch (p.get("resource") || "bootstrap") {
       case "bootstrap": return Response.json(await getBootstrap(viewer));
-      case "feed": return Response.json({ posts: await getFeed(viewer.id, { saved: p.get("saved") === "true", following: p.get("following") === "true", query: p.get("q") || undefined }) });
+      case "feed": return Response.json({ posts: await getFeed(viewer.id, { saved: p.get("saved") === "true", following: p.get("following") === "true", query: p.get("q") || undefined, before: p.get("before") || undefined, limit: p.get("limit") ? Number(p.get("limit")) : undefined }) });
+      case "trending": return Response.json({ trending: await getTrendingHashtags() });
       case "search": {
         const q = (p.get("q") || "").slice(0, 100).replace(/^#/, "");
         const [people, feed] = await Promise.all([getPeople(viewer.id, q), getFeed(viewer.id, { query: q })]);
@@ -47,12 +49,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const origin = request.headers.get("origin");
-    if (origin && new URL(origin).host !== (request.headers.get("x-forwarded-host") || request.headers.get("host"))) return error("Invalid request origin.", 403);
+    if (origin) {
+      let originHost = "";
+      try { originHost = new URL(origin).host; } catch { return error("Invalid request origin.", 403); }
+      if (originHost !== (request.headers.get("x-forwarded-host") || request.headers.get("host"))) return error("Invalid request origin.", 403);
+    }
     const viewer = await getViewer();
     if (!viewer) return error("Please refresh to connect your session.", 401);
+    // Anti-abuse: a generous overall budget per account, plus a stricter
+    // budget for creating content (posts, comments, messages).
+    const general = rateLimit(`social:${viewer.id}`, 300, 5 * 60 * 1000);
+    if (!general.ok) return error(`Too many actions. Please slow down and try again in ${general.retryAfterSeconds}s.`, 429);
     if (process.env.VERCEL && viewer.demo) return error("Create an account or sign in before posting, following, or sending messages.", 403);
     const body = await request.json();
     const id = text(body.id, 100);
+    if (["post", "comment", "message"].includes(body.action)) {
+      const creating = rateLimit(`create:${viewer.id}`, 60, 5 * 60 * 1000);
+      if (!creating.ok) return error(`You're doing that a lot. Please slow down and try again in ${creating.retryAfterSeconds}s.`, 429);
+    }
     switch (body.action) {
       case "like":
       case "save": {
@@ -101,6 +115,23 @@ export async function POST(request: NextRequest) {
       case "delete-post": {
         await db.delete(posts).where(and(eq(posts.id, id), eq(posts.authorId, viewer.id)));
         return Response.json({ ok: true });
+      }
+      case "edit-post": {
+        const caption = text(body.caption);
+        const [updated] = await db.update(posts).set({ caption, location: text(body.location, 100) }).where(and(eq(posts.id, id), eq(posts.authorId, viewer.id))).returning();
+        if (!updated) return error("Post not found.", 404);
+        const feed = await getFeed(viewer.id, { authorId: viewer.id });
+        return Response.json({ post: feed.find((p) => p.id === id) || null });
+      }
+      case "delete-comment": {
+        const commentId = text(body.commentId, 100);
+        const [comment] = await db.select().from(comments).where(eq(comments.id, commentId)).limit(1);
+        if (!comment) return error("Comment not found.", 404);
+        const [post] = await db.select({ authorId: posts.authorId }).from(posts).where(eq(posts.id, comment.postId)).limit(1);
+        // The comment's author, or the post's author moderating their own post.
+        if (comment.userId !== viewer.id && post?.authorId !== viewer.id) return error("You can only delete your own comments.", 403);
+        await db.delete(comments).where(eq(comments.id, commentId));
+        return Response.json({ ok: true, postId: comment.postId });
       }
       case "profile": {
         const name = text(body.name, 60);

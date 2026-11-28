@@ -23,3 +23,5 @@
 .search-icon{display:flex;align-items:center;color:inherit;cursor:pointer;flex-shrink:0}
 @media(max-width:600px){.page-heading{min-width:0;flex:1}.page-heading p{overflow:hidden;text-overflow:ellipsis}.header-tools{flex-shrink:0}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+.load-more-button{display:flex;margin:18px auto 4px}

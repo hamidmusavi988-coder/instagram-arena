@@ -60,6 +60,15 @@ The SSE fallback reconciles database changes every two seconds and rotates befor
 
 The functional tests target the local/SSE storage setup with starter content enabled. Blob and Pusher must additionally be verified against your real provider accounts on a deployed HTTPS domain; local passes do not establish hosted-provider connectivity.
 
+## Advanced additions
+
+- **Anti-abuse rate limiting** (`src/lib/rate-limit.ts`): per-account sliding-window limits on the social API — a general action budget plus a stricter budget for creating posts, comments, and messages, returning `429` with a retry hint.
+- **Real trending hashtags**: counted live from recent post captions (`getTrendingHashtags`), served at `?resource=trending`, included in the bootstrap payload, and shown in the right rail instead of a hardcoded list.
+- **Cursor-paginated feed**: `?resource=feed&before=<ISO timestamp>&limit=<n>` returns older posts; the home feed has a "Load older moments" button that appends them without duplicates.
+- **Post & comment moderation by owners**: authors can edit a post's caption (`edit-post`), and a comment can be deleted by its author or by the post's author (`delete-comment`), both wired into the post UI.
+- **Search hardening**: LIKE wildcards (`%`, `_`, `\`) in user search text are escaped, so a query matches literally instead of matching everything.
+- **Security response headers**: `next.config.ts` now sends `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN`, `Permissions-Policy`, and HSTS on every route.
+
 ## Production scope
 
 This is an MVP, not an Instagram-scale production system. Before a broad public launch add moderation, account recovery, email verification, distributed anti-abuse controls, monitoring, backup/retention policies, and load testing. Messages are not end-to-end encrypted; uploaded feed media is public. See the deployment guide for provider costs, limitations, and a post-deployment checklist.

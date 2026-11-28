@@ -1,4 +1,8 @@
-import { and, asc, desc, eq, inArray, or, ilike, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, or, ilike, sql } from "drizzle-orm";
+
+// Escape LIKE/ILIKE wildcards in user-supplied search text so "%" or "_"
+// in a query matches literally instead of matching everything.
+export const escapeLike = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 import { db } from "@/db";
 import { users, posts, likes, saves, comments, follows, notifications, conversations, members, messages } from "@/db/schema";
 import type { User, Post, Chat, NotificationItem, Bootstrap, Message } from "@/lib/types";
@@ -8,16 +12,18 @@ export function publicUser(u: DbUser): User {
   return { id: u.id, username: u.username, name: u.name, avatar: u.avatar, bio: u.bio, location: u.location, verified: u.verified, demo: u.demo, baseFollowers: u.baseFollowers };
 }
 export async function getPeople(viewerId?: string, query?: string) {
-  const condition = query ? and(eq(users.demo, false), or(ilike(users.username, `%${query}%`), ilike(users.name, `%${query}%`))) : eq(users.demo, false);
+  const condition = query ? and(eq(users.demo, false), or(ilike(users.username, `%${escapeLike(query)}%`), ilike(users.name, `%${escapeLike(query)}%`))) : eq(users.demo, false);
   const rows = await db.select().from(users).where(condition).limit(60);
   const connections = viewerId ? await db.select().from(follows).where(eq(follows.followerId, viewerId)) : [];
   const order = ["olivia", "emma", "noah", "mia", "jake", "ava", "daniel", "sarah"];
   return rows.filter((u) => u.id !== viewerId).sort((a, b) => { const ai = order.indexOf(a.id); const bi = order.indexOf(b.id); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi); }).map((u) => ({ ...publicUser(u), following: connections.some((f) => f.followingId === u.id) }));
 }
-export async function getFeed(viewerId?: string, options: { authorId?: string; query?: string; saved?: boolean; following?: boolean } = {}): Promise<Post[]> {
+export async function getFeed(viewerId?: string, options: { authorId?: string; query?: string; saved?: boolean; following?: boolean; before?: string; limit?: number } = {}): Promise<Post[]> {
   const conditions = [];
   if (options.authorId) conditions.push(eq(posts.authorId, options.authorId));
-  if (options.query) conditions.push(or(ilike(posts.caption, `%${options.query}%`), ilike(posts.location, `%${options.query}%`))!);
+  if (options.query) conditions.push(or(ilike(posts.caption, `%${escapeLike(options.query)}%`), ilike(posts.location, `%${escapeLike(options.query)}%`))!);
+  // Cursor pagination: only posts older than the cursor timestamp.
+  if (options.before) { const cursor = new Date(options.before); if (!Number.isNaN(cursor.getTime())) conditions.push(lt(posts.createdAt, cursor)); }
   if (options.saved) {
     const selected = viewerId ? await db.select().from(saves).where(eq(saves.userId, viewerId)) : [];
     if (!selected.length) return [];
@@ -28,7 +34,7 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
     if (!selected.length) return [];
     conditions.push(inArray(posts.authorId, selected.map((f) => f.followingId)));
   }
-  const rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(posts.createdAt)).limit(60);
+  const rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(posts.createdAt)).limit(Math.min(Math.max(options.limit ?? 60, 1), 60));
   if (!rows.length) return [];
   const ids = rows.map((r) => r.post.id);
   const [allLikes, allSaves, allComments] = await Promise.all([
@@ -41,6 +47,20 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
     const postLikes = allLikes.filter((l) => l.postId === post.id);
     return { ...post, createdAt: post.createdAt.toISOString(), author: publicUser(author), likes: post.baseLikes + postLikes.length, liked: postLikes.some((l) => l.userId === viewerId), saved: allSaves.some((s) => s.postId === post.id), commentCount: post.baseComments + postComments.length, comments: postComments.map(({ comment, user }) => ({ ...comment, createdAt: comment.createdAt.toISOString(), user: publicUser(user) })) };
   });
+}
+export type TrendingTag = { tag: string; count: number };
+// Real trending hashtags, counted from the most recent posts' captions
+// instead of a hardcoded list.
+export async function getTrendingHashtags(limit = 5): Promise<TrendingTag[]> {
+  const rows = await db.select({ caption: posts.caption }).from(posts).orderBy(desc(posts.createdAt)).limit(300);
+  const counts = new Map<string, number>();
+  for (const { caption } of rows) {
+    for (const match of caption.matchAll(/#([\p{L}\p{N}_]+)/gu)) {
+      const tag = `#${match[1].toLowerCase()}`;
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+  }
+  return [...counts.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)).slice(0, limit);
 }
 export async function getNotifications(viewerId: string): Promise<NotificationItem[]> {
   const rows = await db.select({ notification: notifications, actor: users }).from(notifications).leftJoin(users, eq(notifications.actorId, users.id)).where(eq(notifications.userId, viewerId)).orderBy(desc(notifications.createdAt)).limit(50);
@@ -78,6 +98,6 @@ export async function getProfile(id: string, viewerId: string) {
   return { user: { ...publicUser(user), followers: user.baseFollowers + followersList.length, followingCount: followingList.length, following: followersList.some((f) => f.user.id === viewerId) }, posts: profilePosts, followers: followersList.map((f) => publicUser(f.user)), following: followingList.map((f) => publicUser(f.user)) };
 }
 export async function getBootstrap(viewer: DbUser): Promise<Bootstrap> {
-  const [feed, people, alerts, chats] = await Promise.all([getFeed(viewer.id), getPeople(viewer.id), getNotifications(viewer.id), getChats(viewer.id)]);
-  return { viewer: { ...publicUser(viewer), preferences: viewer.preferences }, posts: feed, people, notifications: alerts, chats, googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) };
+  const [feed, people, alerts, chats, trending] = await Promise.all([getFeed(viewer.id), getPeople(viewer.id), getNotifications(viewer.id), getChats(viewer.id), getTrendingHashtags().catch(() => [])]);
+  return { viewer: { ...publicUser(viewer), preferences: viewer.preferences }, posts: feed, people, notifications: alerts, chats, trending, googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) };
 }

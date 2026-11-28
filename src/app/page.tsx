@@ -1,6 +1,6 @@
 import LoopApp from "@/components/loop-app";
 import { ensureSeed } from "@/lib/seed";
-import { getFeed, getPeople, getBootstrap } from "@/lib/data";
+import { getFeed, getPeople, getBootstrap, getTrendingHashtags } from "@/lib/data";
 import { getViewer } from "@/lib/auth";
 import { sampleContentEnabled } from "@/lib/demo-content";
 import type { Bootstrap } from "@/lib/types";
@@ -10,7 +10,7 @@ export default async function HomePage() {
   await ensureSeed();
   const viewer = await getViewer();
   if (viewer) return <LoopApp initial={await getBootstrap(viewer)}/>;
-  const [posts, people] = await Promise.all([getFeed(), getPeople()]);
+  const [posts, people, trending] = await Promise.all([getFeed(), getPeople(), getTrendingHashtags().catch(() => [])]);
   const samples = sampleContentEnabled();
   const initial: Bootstrap = {
     viewer: {
@@ -18,7 +18,7 @@ export default async function HomePage() {
       avatar: samples ? "/images/alex.jpg" : "/icon.svg", bio: samples ? "Finding the good in the everyday. ☀️" : "",
       location: samples ? "Brooklyn, NY" : "", verified: false, demo: true, baseFollowers: 0,
     },
-    posts, people, notifications: [], chats: [], googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    posts, people, notifications: [], chats: [], trending, googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
   };
   return <LoopApp initial={initial}/>;
 }

@@ -20,5 +20,6 @@ export type Chat = {
   lastMessage: string; lastMessageAt: string; unread: number;
 };
 export type Message = { id: string; conversationId: string; senderId: string; text: string; createdAt: string; sender: User; pending?: boolean };
-export type Bootstrap = { viewer: User; posts: Post[]; people: User[]; notifications: NotificationItem[]; chats: Chat[]; googleEnabled: boolean };
+export type TrendingTag = { tag: string; count: number };
+export type Bootstrap = { viewer: User; posts: Post[]; people: User[]; notifications: NotificationItem[]; chats: Chat[]; trending?: TrendingTag[]; googleEnabled: boolean };
 export type View = "home" | "explore" | "reels" | "messages" | "notifications" | "saved" | "profile" | "settings";
