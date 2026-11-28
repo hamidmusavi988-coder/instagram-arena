@@ -78,6 +78,10 @@ The functional tests target the local/SSE storage setup with starter content ena
 - **Open original** in every post's menu: opens the full-size photo or video in a new tab.
 - **Heart red on black theme**: the whole app (and app icon) moved from the pink/white palette to heart red (#ff3040) on black.
 
+## Feed stability fix
+
+The feed could appear to scroll back up while reading: the interest ranking used `Math.random()` inside its sort comparator (re-rolled on every comparison) plus a `ORDER BY random()` candidate pool, so every data refresh produced a different order and replaced the list under the reader; `navigate()` also smooth-scrolled to the top even when the destination had not changed. Now the ranking jitter is a stable hash of viewer + post (same order on every fetch), scores are precomputed before sorting, refreshes merge into the on-screen order instead of replacing it (new posts append at the end), and navigation only scrolls to top when the destination actually changes.
+
 ## Instagram-style feature pack
 
 - **View counts**: a post counts a view when it is mostly on screen for ~1 second (once per viewer session), shown under videos in the feed, at the top of the Reels rail, in Post insights, and as a total in profile Insights. Counts are stored in a `views` column — run `migrations/add-views.sql` once in your Postgres console to enable real counting; the app works before and after, counts simply stay 0 until the column exists.

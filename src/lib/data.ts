@@ -44,7 +44,8 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
   // interests instead of pure time or pure chance. Load-more calls (which
   // pass a cursor) fall back to a fresh random shuffle.
   const ranked = Boolean(options.random && viewerId && !options.before && !options.authorId && !options.query && !options.saved && !options.following);
-  let rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(ranked || options.random ? sql`random()` : desc(posts.createdAt)).limit(ranked ? 200 : limit);
+  // Ranked pool loads in a fixed order; only load-more shuffles (it appends).
+  let rows = await db.select({ post: posts, author: users }).from(posts).innerJoin(users, eq(posts.authorId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(options.random && !ranked ? sql`random()` : desc(posts.createdAt)).limit(ranked ? 200 : limit);
   if (ranked && viewerId) {
     const [likedRows, savedRows, followRows] = await Promise.all([
       db.select().from(likes).where(eq(likes.userId, viewerId)),
@@ -56,15 +57,20 @@ export async function getFeed(viewerId?: string, options: { authorId?: string; q
     const tagOf = (caption: string) => (caption.match(/#[\p{L}\p{N}_]+/gu) || []).map((t) => t.toLowerCase());
     const interestTags = new Set(interestPosts.flatMap((p) => tagOf(p.caption)));
     const followedAuthors = new Set(followRows.map((f) => f.followingId));
-    const score = (row: (typeof rows)[number]) => {
-      let s = Math.random() * 2; // jitter, so the mix still feels fresh
+    // The jitter MUST be stable: a hash of viewer+post, precomputed once.
+    // (Previously Math.random() inside the sort comparator re-rolled on
+    // every comparison and on every fetch, so the feed re-ordered itself
+    // on each refresh and appeared to jump back up while scrolling.)
+    const jitter = (postId: string) => { let h = 2166136261; const s = `${viewerId}:${postId}`; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h >>> 0) % 1000) / 500; };
+    const scores = new Map(rows.map((row) => {
+      let s = jitter(row.post.id);
       s += tagOf(row.post.caption).filter((t) => interestTags.has(t)).length * 2;
       if (followedAuthors.has(row.post.authorId)) s += 3;
       if (row.post.authorId === viewerId) s -= 1.5; // your own posts a little lower
       s += Math.min(2, Math.log10(row.post.baseLikes + row.post.baseComments + 1) / 2);
-      return s;
-    };
-    rows = [...rows].sort((a, b) => score(b) - score(a)).slice(0, limit);
+      return [row.post.id, s] as const;
+    }));
+    rows = [...rows].sort((a, b) => (scores.get(b.post.id) || 0) - (scores.get(a.post.id) || 0)).slice(0, limit);
   }
   if (!rows.length) return [];
   const ids = rows.map((r) => r.post.id);

@@ -52,11 +52,31 @@ export default function LoopApp({ initial }: { initial: Bootstrap }) {
     });
   }, [toast]);
   const setHideCounts = useCallback((value: boolean) => { setHideCountsState(value); try { localStorage.setItem("loop-hide-counts", value ? "1" : "0"); } catch {} }, []);
-  const refresh = useCallback(async () => { const next = await api<Bootstrap>("/api/social"); setData(next); setReady(true); }, []);
+  // A refresh must never reshuffle posts the user is already looking at:
+  // keep the on-screen order, update those posts' fields in place, and
+  // append genuinely new posts at the end. (Replacing the whole list with
+  // a freshly ranked one made the feed appear to scroll back up.)
+  const refresh = useCallback(async () => {
+    const next = await api<Bootstrap>("/api/social");
+    setData((current) => {
+      if (!current.posts.length) return next;
+      const fresh = new Map(next.posts.map((p) => [p.id, p]));
+      const merged = current.posts.map((p) => fresh.get(p.id) ?? p);
+      const seen = new Set(merged.map((p) => p.id));
+      for (const p of next.posts) if (!seen.has(p.id)) merged.push(p);
+      return { ...next, posts: merged };
+    });
+    setReady(true);
+  }, []);
+  const navKeyRef = useRef("");
   const navigate = useCallback((next: View, id?: string) => {
+    const key = `${next}:${id || ""}`;
+    const sameDestination = key === navKeyRef.current;
+    navKeyRef.current = key;
     setView(next); setSearchOpen(false); setModal(null);
     if (next === "profile") setProfileId(id || "");
     if (next === "messages" && id) setFocusChatId(id);
+    if (sameDestination) return; // already here — never yank the scroll position
     const params = new URLSearchParams();
     if (next !== "home") params.set("view", next);
     if (id) params.set(next === "messages" ? "chat" : "user", id);
@@ -68,7 +88,9 @@ export default function LoopApp({ initial }: { initial: Bootstrap }) {
     const restore = () => {
       const params = new URLSearchParams(window.location.search);
       const requested = params.get("view") as View;
-      setView(requested && requested in headings ? requested : "home");
+      const restoredView = requested && requested in headings ? requested : "home";
+      navKeyRef.current = `${restoredView}:${params.get("user") || params.get("chat") || ""}`;
+      setView(restoredView);
       setProfileId(params.get("user") || ""); setFocusChatId(params.get("chat") || "");
       if (params.get("q")) setQuery(params.get("q")!);
       if (params.get("auth")) setModal({ type: "auth", text: params.get("auth") === "google-unavailable" ? "Google sign-in needs this server's Google OAuth credentials. Email sign-in is ready to use." : "Google sign-in didn't finish. Please try again or continue with email." });
